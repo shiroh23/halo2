@@ -19,7 +19,7 @@ struct client
     int licit;
     char ip[INET6_ADDRSTRLEN];
     char port[10];
-    struct client next;
+    struct client *next;
 };
 
 int main(void)
@@ -96,7 +96,7 @@ int main(void)
                     }
                     else
                     {
-
+                        int
                     }
                 }
             }
