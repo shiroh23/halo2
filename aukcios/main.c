@@ -96,7 +96,39 @@ int main(void)
                     }
                     else
                     {
-                        int
+                        int recbytes = recv(i, buff, sizeof(buff), 0);
+                        if (recbytes == 0)
+                        {
+                            struct client *tmp = cl;
+                            if (tmp->fd == i)
+                            {
+                                cl = cl->next;
+                                free(tmp);
+                            }
+                            else
+                            {
+                                struct client *akt = cl->next;
+                                for (; akt->fd != i; akt=akt->next, tmp=tmp->next);
+                                tmp->next = akt->next;
+                                free(akt);
+                            }
+                            close(i);
+                            cnum--;
+                            FD_CLR(i, &master);
+                            int fdmaxuj = 0;
+                            for (j=0; j<=fdmax; j++)
+                            {
+                                if (FD_ISSET(j, &master))
+                                {
+                                    fdmaxuj = j;
+                                }
+                            }
+                            fdmax = fdmaxuj;
+                        }
+                        else
+                        {
+                            buff[recbytes-2] = '\0';
+                        }
                     }
                 }
             }
