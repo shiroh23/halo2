@@ -10,13 +10,13 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 
-#define MAXCLIENT 2
+#define MAXCLIENT 3
 #define PORT "1111"
 
 struct client
 {
     int fd;
-    int licit;
+    char licit[128];
     char ip[INET6_ADDRSTRLEN];
     char port[10];
     struct client *next;
@@ -34,10 +34,18 @@ int main(void)
 
     getaddrinfo(NULL, PORT, &hints, &res);
     int listener = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+    int yes=1;
+
+       if (setsockopt(listener,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
+           perror("setsockopt");
+           exit(1);
+       }
+
     bind(listener, res->ai_addr, res->ai_addrlen);
     listen(listener, 5);
 
-    int i,j,cnum=0,fdmax=listener;
+    int i,j,cnum=0,fdmax=listener, maxlicit=0;
     char buff[512];
 
     fd_set master, readfds;
@@ -49,16 +57,16 @@ int main(void)
     socklen_t claddrlen;
 
     struct timeval tv;
-    tv.tv_sec = 1;
+    tv.tv_sec = 20;
     tv.tv_usec = 0;
-    int retval, eltelt=0;
+    int retval=0, eltelt=0;
 
     while (1)
     {
         readfds = master;
-        retval = select(fdmax+1, &readfds, NULL, NULL, &tv);
+        select(fdmax+1, &readfds, NULL, NULL, NULL);
 
-        if (retval)
+        if (retval == 0)
         {
             for (i=0; i<=fdmax; i++)
             {
@@ -77,7 +85,6 @@ int main(void)
                         {
                             struct client *uj = (struct client*)malloc(sizeof(struct client));
                             uj->fd = new_fd;
-                            uj->licit = 0;
                             if (claddr.sa_family == AF_INET)
                             {
                                 inet_ntop(AF_INET, &(((struct sockaddr_in*)&claddr)->sin_addr), uj->ip, INET_ADDRSTRLEN);
@@ -92,6 +99,7 @@ int main(void)
                             cl = uj;
                             FD_SET(new_fd, &master);
                             if (fdmax < new_fd) fdmax = new_fd;
+                            send(new_fd, "Varom a teteket\n", strlen("Varom a teteket\n"), 0);
                         }
                     }
                     else
@@ -128,6 +136,22 @@ int main(void)
                         else
                         {
                             buff[recbytes-2] = '\0';
+                            int hasznalhato = atoi(buff);
+                            printf("%d\n", hasznalhato);
+                            if (hasznalhato != 0)
+                            {
+                                for (j=0; j<=fdmax; j++)
+                                {
+                                    if (FD_ISSET(j, &master) && j!=listener)
+                                    {
+                                        send(j, "szuper sikerult\n", strlen("szuper sikerult\n"), 0);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                send(i, "valosat adj meg\n", strlen("valosat adj meg\n"), 0);
+                            }
                         }
                     }
                 }
