@@ -12,11 +12,11 @@
 
 #define MAXCLIENT 3
 #define PORT "1111"
+#define TIMING 10
 
 struct client
 {
     int fd;
-    char licit[128];
     char ip[INET6_ADDRSTRLEN];
     char port[10];
     struct client *next;
@@ -25,7 +25,7 @@ struct client
 int main(void)
 {
     struct addrinfo hints, *res;
-    struct client *cl;
+    struct client *cl = NULL;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -45,8 +45,9 @@ int main(void)
     bind(listener, res->ai_addr, res->ai_addrlen);
     listen(listener, 5);
 
-    int i,j,cnum=0,fdmax=listener, maxlicit=0;
+    int i,j,cnum=0,fdmax=listener, maxlicit=0, socket=0;
     char buff[512];
+    int megy = 0;
 
     fd_set master, readfds;
     FD_ZERO(&master);
@@ -57,16 +58,16 @@ int main(void)
     socklen_t claddrlen;
 
     struct timeval tv;
-    tv.tv_sec = 20;
+    tv.tv_sec = 1;
     tv.tv_usec = 0;
     int retval=0, eltelt=0;
 
     while (1)
     {
         readfds = master;
-        select(fdmax+1, &readfds, NULL, NULL, NULL);
+        retval = select(fdmax+1, &readfds, NULL, NULL, &tv);
 
-        if (retval == 0)
+        if (retval)
         {
             for (i=0; i<=fdmax; i++)
             {
@@ -85,6 +86,7 @@ int main(void)
                         {
                             struct client *uj = (struct client*)malloc(sizeof(struct client));
                             uj->fd = new_fd;
+                            uj->next = cl;
                             if (claddr.sa_family == AF_INET)
                             {
                                 inet_ntop(AF_INET, &(((struct sockaddr_in*)&claddr)->sin_addr), uj->ip, INET_ADDRSTRLEN);
@@ -99,7 +101,17 @@ int main(void)
                             cl = uj;
                             FD_SET(new_fd, &master);
                             if (fdmax < new_fd) fdmax = new_fd;
-                            send(new_fd, "Varom a teteket\n", strlen("Varom a teteket\n"), 0);
+                            char msg[128]="";
+                            if (megy == 0)
+                            {
+                                sprintf(msg, "Varom a teteket\n");
+                                send(new_fd, msg, sizeof(msg), 0);
+                            }
+                            else
+                            {
+                                sprintf(msg, "Varom a teteket\nJelenlegi legnagyobb:\n %d - licit: %d\n", socket, maxlicit);
+                                send(new_fd, msg, sizeof(msg), 0);
+                            }
                         }
                     }
                     else
@@ -119,6 +131,7 @@ int main(void)
                                 for (; akt->fd != i; akt=akt->next, tmp=tmp->next);
                                 tmp->next = akt->next;
                                 free(akt);
+
                             }
                             close(i);
                             cnum--;
@@ -140,11 +153,24 @@ int main(void)
                             printf("%d\n", hasznalhato);
                             if (hasznalhato != 0)
                             {
-                                for (j=0; j<=fdmax; j++)
+                                megy = 1;
+                                if (maxlicit < hasznalhato)
                                 {
-                                    if (FD_ISSET(j, &master) && j!=listener)
+                                    eltelt = 0;
+                                    char msg[512]="";
+                                    struct client * temp = cl;
+                                    for (; temp->fd != i; temp=temp->next);
+                                    socket = temp->fd;
+                                    sprintf(msg, "kliens: %d - licit: %d\n", socket, hasznalhato);
+
+                                    maxlicit = hasznalhato;
+
+                                    for (j=0; j<=fdmax; j++)
                                     {
-                                        send(j, "szuper sikerult\n", strlen("szuper sikerult\n"), 0);
+                                        if (FD_ISSET(j, &master) && j!=listener && j!=i)
+                                        {
+                                            send(j, msg, sizeof(msg), 0);
+                                        }
                                     }
                                 }
                             }
@@ -157,23 +183,37 @@ int main(void)
                 }
             }
         }
-
+        if (retval == 0 && megy == 1)
+        {
+            eltelt++;
+            printf(">> Utolsó licit óta eltelt %d sec...\n",eltelt);
+            tv.tv_sec = 1;
+            if(eltelt==TIMING)    {
+                char sendbuf[512]="";
+                sprintf(sendbuf,"\n>> %d másodperce nem érkezett nagyobb licit, így az aukció lezárult!\n>> A nyertes a(z) %d. socket, aki %d kreditet ajánlott a termékért!\n>> Helóka!\n\n",TIMING,socket,maxlicit);
+                for(j=0;j<=fdmax;j++)
+                {
+                    if(FD_ISSET(j, &master) && j!=listener && j!=i)
+                    {
+                        send(j,sendbuf,sizeof(sendbuf),0);
+                    }
+                }
+                break;
+            }
+        }
+        if (retval == 0 && megy == 0) tv.tv_sec = 1;
     }
 
 
+    close(listener);
 
-
-
-
-
-
-
-
-
-
-
-
-
+    struct client * del = cl;
+        while (del != NULL) {
+            del = cl;
+            cl = cl->next;
+            free(del);
+            del = NULL;
+        }
 
 
 
